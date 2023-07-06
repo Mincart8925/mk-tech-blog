@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head lang="auto">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <meta property="og:title" content="maka.log();">
+    <link href="static/style.css" rel="stylesheet">
+    <title>maka.log();</title>
+    
+</head>
+<body>
+<nav>
+    <h3>maka.log();</h3>
+    
+    <a href="index.html">Posts</a>
+    <a href="tags.html">Category</a>
+    <a href="about.html">About</a>
+    
+</nav>
+<div class="post-info">
+    <h1 class="post-title">Docker and CGO</h1>
+    <p class="post-timestamp">CREATED | Created in 2023. 07. 06.</p>
+    <p class="post-tag">CATEGORY | <a href="../tags.html#55f37d1f">Dev</a></p>
+    <hr class="post-line"/>
+</div>
+
+<article class="post-section">
+    <p>Golang 컨테이너를 배포하던 와중 이러한 문제를 마주쳤습니다:<br /><div class="code"> <code>Checking SQLite3...<br />2023/07/06 13:01:29 Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work. This is a stub</code> </div><br /><br />해당 문제는 프로젝트가 특정한 라이브러리를 쓰고 있기 때문에 발생합니다.<br />빌드에서 문제가 되는 해당 라이브러리에서 CGO를 사용하고 있기 때문에 빌드가 되지 않을 것을 알 수 있습니다.<br /><br />CGO는 이름에서 보이는 것 처럼 C + GO, C의 기능을 빠르게 Go로 바인딩할 수 있도록 Go에서 자체적으로 지원하는 기능입니다.<br /><br />당연하게도 이런 C 코드를 포함하는 코드를 전체적으로 컴파일하기 위해선 CGO를 포함하도록 컴파일 옵션이 지정되어야 합니다.<br />저는 프로젝트에서 Base Image로 golang-alpine을 사용 중입니다만, 해당 이미지에선 CGO가 기본값으로 켜져있지 않습니다.<br /><br />해당 옵션을 활성화하기 위해 CGO_ENABLED 값을 1로 설정해줍니다.<br /><br /><div class="code"> <code>RUN CGO_ENABLED=0 GOOS=linux go build -o TARGET_NAME</code> </div><br /><br />하지만, 생각과는 달리 해당 오류가 발생해버리게 됩니다:<br /><br /><div class="code"> <code>Removing intermediate container 4b817f1853d5<br /> ---> ebc4f80cc34b<br />Step 7/11 : RUN CGO_ENABLED=1 GOOS=linux go build<br /> ---> Running in 294f5372b5cb<br /># runtime/cgo<br />cgo: C compiler "gcc" not found: exec: "gcc": executable file not found in $PATH<br />The command '/bin/sh -c CGO_ENABLED=1 GOOS=linux go build' returned a non-zero code: 1</code> </div><br /><br />오류 내용만 봐도 알 수 있습니다. 툴체인이 없어서 발생하는 문제입니다.<br />툴체인을 설치해줍시다.<br /><br /><div class="code"> <code>RUN apk add --no-cache --update build-base</code> </div><br /><br />해당 툴체인을 설치할 시 크게 문제 없이 컴파일이 완료되는 모습을 볼 수 있습니다.<br /><br />완성된 Dockerfile은 다음과 같습니다:<br /><br /><div class="code"> <code>FROM golang:alpine AS builder<br />WORKDIR /app<br /><br />COPY . .<br />COPY go.mod .<br />COPY go.sum .<br /><br />RUN apk add --no-cache --update build-base<br />RUN go get -u -d -v<br />RUN CGO_ENABLED=1 GOOS=linux go build -o TARGET_NAME<br /><br />FROM alpine:latest<br />WORKDIR /app<br /><br />COPY --from=builder /app/TARGET_NAME ./<br />CMD [ "./TARGET_NAME" ]</code> </div></p>
+</article>
+
+<footer>
+    <p>Written with <a href="https://github.com/libnare/nemo" target="_blank">NEMO</a></p>
+</footer>
+</body>
+</html>
